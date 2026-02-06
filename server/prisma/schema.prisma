@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String         @id @default(cuid())
+  name              String
+  email             String         @unique
+  phone             String         @unique
+  countryCode       String         @default("+1")
+  whatsappNumber    String?
+  address           String?
+  city              String?
+  state             String?
+  isPhoneVerified   Boolean        @default(false)
+  isProfileComplete Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  refreshTokens     RefreshToken[]
+  otpRequests       OtpRequest[]
+
+  @@index([phone, countryCode])
+}
+
+model OtpRequest {
+  id          String     @id @default(cuid())
+  phone       String
+  countryCode String     @default("+1")
+  otpHash     String
+  purpose     OtpPurpose @default(LOGIN)
+  signupData  Json?
+  attempts    Int        @default(0)
+  isUsed      Boolean    @default(false)
+  expiresAt   DateTime
+  createdAt   DateTime   @default(now())
+  user        User?      @relation(fields: [userId], references: [id])
+  userId      String?
+
+  @@index([phone, countryCode, isUsed])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  isRevoked Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+
+  @@index([userId])
+}
+
+enum OtpPurpose {
+  LOGIN
+  SIGNUP
+}

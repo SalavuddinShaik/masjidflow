@@ -1,92 +1,120 @@
-import { useState, useEffect } from 'react';
-import bismillahSvg from '../assets/bismillah.svg';
+import { useState, useEffect } from "react";
+import bismillahSvg from "../assets/bismillah.svg";
 
 interface SplashScreenProps {
   onComplete: () => void;
 }
 
 export function SplashScreen({ onComplete }: SplashScreenProps) {
-  const [showGradient, setShowGradient] = useState(false);
-  const [showContent, setShowContent] = useState(false);
-  const [moveToTop, setMoveToTop] = useState(false);
+  const [step, setStep] = useState(1); // 1, 2, or 3
 
   useEffect(() => {
-    // Screen 1: White for 2 seconds
-    const gradientTimer = setTimeout(() => {
-      setShowGradient(true);
-    }, 2000);
+    // Step 1 → 2: White to Green (2s)
+    const timer1 = setTimeout(() => setStep(2), 2000);
 
-    // Screen 2: Show Bismillah centered (fade in after gradient starts)
-    const contentTimer = setTimeout(() => {
-      setShowContent(true);
-    }, 2500);
+    // Step 2 → 3: Bismillah moves to top (3s later)
+    const timer2 = setTimeout(() => setStep(3), 5000);
 
-    // Screen 3: After 3 seconds centered, animate Bismillah to top
-    const moveToTopTimer = setTimeout(() => {
-      setMoveToTop(true);
-    }, 5500);
-
-    // Navigate to login after animation completes (1.5s animation + buffer)
-    const navigationTimer = setTimeout(() => {
-      onComplete();
-    }, 7500);
+    // Complete and navigate (2s after step 3)
+    const timer3 = setTimeout(() => onComplete(), 7000);
 
     return () => {
-      clearTimeout(gradientTimer);
-      clearTimeout(contentTimer);
-      clearTimeout(moveToTopTimer);
-      clearTimeout(navigationTimer);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
     };
   }, [onComplete]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
-      {/* White background (Screen 1) */}
+    <div className="relative w-full min-h-screen overflow-hidden">
+      {/* Step 1: White background */}
       <div
-        className={`absolute inset-0 bg-white transition-opacity duration-1000 ease-in-out ${
-          showGradient ? 'opacity-0' : 'opacity-100'
-        }`}
-      />
-
-      {/* Green gradient background (Screen 2 & 3) */}
-      <div
-        className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-          showGradient ? 'opacity-100' : 'opacity-0'
-        }`}
+        className="absolute inset-0 bg-white transition-opacity duration-1000 ease-in-out"
         style={{
-          background: 'linear-gradient(to bottom, #c8e6c9 0%, #81c784 30%, #66bb6a 60%, #4caf50 100%)',
+          opacity: step === 1 ? 1 : 0,
         }}
       />
 
-      {/* Grainy/noise texture overlay */}
+      {/* Step 2 & 3: Splash background image */}
       <div
-        className={`absolute inset-0 pointer-events-none transition-opacity duration-1000 ease-in-out ${
-          showGradient ? 'opacity-100' : 'opacity-0'
-        }`}
+        className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
         style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-          opacity: 0.15,
-          mixBlendMode: 'overlay',
+          backgroundImage: "url(/images/splash-background.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          opacity: step >= 2 ? 1 : 0,
         }}
       />
 
-      {/* Bismillah SVG - animates from center to top */}
+      {/* Step 3: BRIGHT WHITE GLOW */}
+      <>
+        {/* Main white glow - very bright */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 transition-all duration-[1200ms] ease-out"
+          style={{
+            top: "200px",
+            width: "80%",
+            maxWidth: "600px",
+            height: "400px",
+            background: `
+              radial-gradient(ellipse at center, 
+                rgba(255, 255, 255, 0.95) 0%, 
+                rgba(255, 255, 255, 0.85) 15%, 
+                rgba(255, 255, 255, 0.7) 30%, 
+                rgba(255, 255, 255, 0.5) 45%, 
+                rgba(255, 255, 255, 0.3) 60%, 
+                transparent 80%
+              )
+            `,
+            filter: "blur(60px)",
+            opacity: step === 3 ? 1 : 0,
+            zIndex: 5,
+          }}
+        />
+
+        {/* Secondary glow layer for extra brightness */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 transition-all duration-[1200ms] ease-out"
+          style={{
+            top: "250px",
+            width: "60%",
+            maxWidth: "400px",
+            height: "300px",
+            background:
+              "radial-gradient(ellipse, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.6) 40%, transparent 70%)",
+            filter: "blur(40px)",
+            opacity: step === 3 ? 1 : 0,
+            zIndex: 6,
+          }}
+        />
+      </>
+
+      {/* Bismillah - SMOOTH ANIMATION */}
       <div
-        className={`absolute inset-x-0 flex justify-center ease-in-out ${
-          showContent ? 'opacity-100' : 'opacity-0'
-        }`}
+        className="absolute left-1/2 transition-all ease-out"
         style={{
-          top: moveToTop ? '15%' : '50%',
-          transform: moveToTop ? 'translateY(0)' : 'translateY(-50%)',
-          transition: moveToTop
-            ? 'top 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s ease-in-out'
-            : 'opacity 1s ease-in-out',
+          top: step === 3 ? "60px" : step === 2 ? "50%" : "50%",
+          transform:
+            step === 3 ? "translate(-50%, 0)" : "translate(-50%, -50%)",
+          opacity: step >= 2 ? 1 : 0,
+          transitionDuration: step === 3 ? "1800ms" : "1000ms",
+          transitionTimingFunction:
+            step === 3 ? "cubic-bezier(0.34, 1.56, 0.64, 1)" : "ease-out",
+          zIndex: 10,
         }}
       >
         <img
           src={bismillahSvg}
           alt="Bismillah"
-          className="w-64 md:w-80 lg:w-96"
+          className="w-64 md:w-80"
+          style={{
+            filter:
+              step === 3
+                ? "drop-shadow(0 4px 20px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 40px rgba(255, 255, 255, 0.3))"
+                : "none",
+            transition: "filter 1200ms ease-out",
+          }}
         />
       </div>
     </div>

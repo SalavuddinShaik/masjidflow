@@ -1,24 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import bismillah from "../assets/bismillah.svg";
+import { useAuth } from "../contexts/AuthContext";
+import { ApiError } from "../services/api";
 
-type OtpProps = {
-  phone?: string;
-  onBack: () => void;
-  onVerified: () => void;
-};
+export function Otp() {
+  const navigate = useNavigate();
+  const { pendingAuth, verifyOtp, sendLoginOtp, sendSignupOtp, clearPendingAuth } = useAuth();
 
-export function Otp({
-  phone = "+1 630 123 4567",
-  onBack,
-  onVerified,
-}: OtpProps) {
   const [digits, setDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
   const [secondsLeft, setSecondsLeft] = useState(30);
   const [showForm, setShowForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const otpValue = useMemo(() => digits.join(""), [digits]);
   const canVerify = otpValue.length === 6;
+
+  // Redirect if no pending auth
+  useEffect(() => {
+    if (!pendingAuth) {
+      navigate("/phone-login");
+    }
+  }, [pendingAuth, navigate]);
 
   useEffect(() => {
     inputsRef.current[0]?.focus();
@@ -44,6 +49,7 @@ export function Otp({
       next[index] = v;
       return next;
     });
+    setError("");
   };
 
   const handleChange = (index: number, value: string) => {
@@ -81,162 +87,292 @@ export function Otp({
     if (lastIndex >= 0) inputsRef.current[lastIndex]?.focus();
   };
 
-  const handleResend = () => {
-    if (secondsLeft > 0) return;
-    setSecondsLeft(30);
-    setDigits(["", "", "", "", "", ""]);
-    inputsRef.current[0]?.focus();
+  const handleVerify = async () => {
+    if (!canVerify || !pendingAuth) return;
+
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const { isNewUser } = await verifyOtp(otpValue);
+
+      if (isNewUser) {
+        navigate("/basic-info");
+      } else {
+        navigate("/welcome");
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+        // Clear digits on invalid OTP
+        if (err.code === "INVALID_OTP") {
+          setDigits(["", "", "", "", "", ""]);
+          inputsRef.current[0]?.focus();
+        }
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  const handleResend = async () => {
+    if (secondsLeft > 0 || !pendingAuth) return;
+
+    setError("");
+    setIsLoading(true);
+
+    try {
+      if (pendingAuth.isSignup && pendingAuth.signupData) {
+        await sendSignupOtp(pendingAuth.signupData);
+      } else {
+        await sendLoginOtp(pendingAuth.phone, pendingAuth.countryCode);
+      }
+      setSecondsLeft(30);
+      setDigits(["", "", "", "", "", ""]);
+      inputsRef.current[0]?.focus();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Failed to resend OTP. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    clearPendingAuth();
+    navigate(-1);
+  };
+
+  const displayPhone = pendingAuth
+    ? `${pendingAuth.countryCode} ${pendingAuth.phone.replace(/(\d{3})(\d{3})(\d{4})/, "$1 $2 $3")}`
+    : "";
+
   return (
-    <div
-      className="relative w-full min-h-screen overflow-hidden flex items-center justify-center"
-      style={{
-        background:
-          "linear-gradient(180deg, #D4E8D1 0%, #C5E0C8 25%, #B8D9BE 50%, #A8D4B8 75%, #9ACFAE 100%)",
-      }}
-    >
-      {/* Card: full screen on mobile, centered 480px card on desktop */}
-      <div
-        className="relative w-full min-h-screen md:min-h-0 md:max-w-[480px] md:rounded-[32px] md:shadow-2xl overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(180deg, #D4E8D1 0%, #C5E0C8 25%, #B8D9BE 50%, #A8D4B8 75%, #9ACFAE 100%)",
-        }}
-      >
-        {/* Mosque + Bismillah hero section */}
+    <div className="relative w-full min-h-screen flex items-center justify-center md:block">
+      {/* Container: same as PhoneLogin */}
+      <div className="relative overflow-hidden bg-white w-[412px] h-[917px] rounded-[30px] md:w-screen md:h-screen md:min-h-0 md:rounded-none">
+        {/* Background image */}
         <div
-          className="relative w-full flex items-center justify-center"
-          style={{ height: "40vh", minHeight: 260 }}
+          className="absolute inset-0"
+          style={{
+            backgroundImage: "url(/images/login-background.png)",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+          }}
+        />
+
+        {/* Back button */}
+        <button
+          onClick={handleBack}
+          className="absolute z-30 top-12 left-6 p-2 bg-white/80 rounded-full hover:bg-white transition-colors"
+          style={{ border: "1px solid #C1C1C1" }}
         >
-          <img
-            src="/images/mosque.png"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ opacity: 0.7 }}
-          />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(180deg, transparent 0%, transparent 50%, rgba(197, 224, 200, 0.6) 75%, #C5E0C8 100%)",
-            }}
-          />
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 18L9 12L15 6" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+
+        {/* White glow below Bismillah */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+          style={{
+            top: "215px",
+            width: "300px",
+            height: "200px",
+            background:
+              "radial-gradient(ellipse at center, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.6) 30%, rgba(255, 255, 255, 0.3) 60%, transparent 80%)",
+            filter: "blur(40px)",
+            zIndex: 5,
+          }}
+        />
+
+        {/* Bismillah */}
+        <div
+          className="absolute z-20 left-1/2 -translate-x-1/2 md:left-1/2 md:-translate-x-1/2"
+          style={{
+            top: "120px",
+            width: "280px",
+          }}
+        >
           <img
             src={bismillah}
             alt="Bismillah"
-            className="relative z-10 h-20 md:h-24 drop-shadow-sm"
+            className="w-full h-full"
+            style={{
+              filter:
+                "drop-shadow(0 4px 20px rgba(255, 255, 255, 0.6)) drop-shadow(0 0 40px rgba(255, 255, 255, 0.3))",
+            }}
           />
         </div>
 
-        {/* Form section */}
+        {/* Form content */}
         <div
-          className={`flex flex-col items-center px-6 pb-10 transition-all duration-700 ease-out ${
+          className={`absolute z-10 left-0 right-0 md:left-1/2 md:right-auto md:px-0 md:-translate-x-1/2 transition-all duration-700 ease-out ${
             showForm ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
+          style={{ top: "322px", paddingLeft: "28px", paddingRight: "28px" }}
         >
-          <div
-            className="w-full max-w-[480px] mx-auto"
-            style={{ paddingLeft: 20, paddingRight: 20 }}
+          {/* Title */}
+          <h1
+            className="w-full md:w-[480px] text-center"
+            style={{
+              fontFamily: "Poppins, sans-serif",
+              fontSize: "20px",
+              fontWeight: 600,
+              color: "#000000",
+              margin: 0,
+              marginBottom: "0px",
+            }}
           >
-            {/* Heading */}
-            <h1
-              className="text-center"
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: "#000000",
-                marginBottom: 24,
-              }}
-            >
-              Verify Your Number
-            </h1>
+            Verify Your Number
+          </h1>
 
-            {/* Subtitle */}
+          {/* Subtitle */}
+          <p
+            className="w-full max-w-[432px] md:w-[480px] text-center mx-auto"
+            style={{
+              fontFamily: "Poppins, sans-serif",
+              fontSize: "14px",
+              fontStyle: "normal",
+              fontWeight: 400,
+              lineHeight: "normal",
+              color: "#444444",
+              margin: 0,
+              marginTop: "24px",
+              marginBottom: "8px",
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
+          >
+            We've sent a 6-digit code to{" "}
+            <span style={{ fontWeight: 600 }}>{displayPhone}</span>
+          </p>
+
+          {/* Error message */}
+          {error && (
             <p
+              className="w-full max-w-[432px] mx-auto text-center"
               style={{
-                fontSize: 14,
-                fontWeight: 400,
-                color: "#444444",
-                marginBottom: 12,
+                marginTop: "8px",
+                marginBottom: "8px",
+                fontFamily: "Poppins, sans-serif",
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "#dc2626",
               }}
             >
-              We've sent a 6-digit code to{" "}
-              <span style={{ fontWeight: 600 }}>{phone}</span>
+              {error}
             </p>
+          )}
 
-            {/* 6 OTP input boxes */}
-            <div className="flex gap-2" style={{ marginBottom: 35 }}>
-              {digits.map((d, i) => (
-                <input
-                  key={i}
-                  ref={(el) => {
-                    inputsRef.current[i] = el;
-                  }}
-                  value={d}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  onChange={(e) => handleChange(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  onPaste={i === 0 ? handlePaste : undefined}
-                  className="outline-none text-center text-xl font-semibold"
-                  style={{
-                    width: 45,
-                    height: 55,
-                    background: "rgba(255, 255, 255, 0.64)",
-                    border: "1px solid #C1C1C1",
-                    borderRadius: 13,
-                    color: "#1a1a1a",
-                  }}
-                />
-              ))}
+          {/* 6 OTP input boxes */}
+          <div className="w-full max-w-[432px] md:w-[480px] mx-auto overflow-visible">
+            {/* mobile scale wrapper */}
+            <div className="origin-top-left scale-[0.70] md:scale-100">
+              <div
+                className="flex flex-nowrap justify-between w-full"
+                style={{ gap: "12px", marginBottom: "30px" }}
+              >
+                {digits.map((d, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => {
+                      inputsRef.current[i] = el;
+                    }}
+                    value={d}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    onChange={(e) => handleChange(i, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(i, e)}
+                    onPaste={i === 0 ? handlePaste : undefined}
+                    className="flex-none outline-none text-center font-semibold rounded-[16px]"
+                    style={{
+                      width: "68px",
+                      height: "68px",
+                      minWidth: 0,
+                      background: "rgba(255, 255, 255, 0.64)",
+                      border: error ? "1px solid #dc2626" : "1px solid #C1C1C1",
+                      fontFamily: "Poppins, sans-serif",
+                      fontSize: "24px",
+                      fontWeight: 600,
+                      color: "#1a1a1a",
+                    }}
+                  />
+                ))}
+              </div>
             </div>
+          </div>
 
-            {/* Verify OTP button */}
-            <button
-              type="button"
-              disabled={!canVerify}
-              onClick={onVerified}
-              className="w-full text-white font-semibold text-[18px] transition-all duration-200 hover:brightness-110 active:scale-[0.98]"
+          {/* Verify OTP button - same as Get OTP */}
+          <button
+            type="button"
+            disabled={!canVerify || isLoading}
+            onClick={handleVerify}
+            className="w-full max-w-[432px] mx-auto block text-white border-none cursor-pointer transition-all duration-200 hover:brightness-110 active:scale-[0.98] rounded-[10px] disabled:opacity-70 disabled:cursor-not-allowed"
+            style={{
+              height: "64px",
+              backgroundColor: "#024413",
+              boxShadow: "0 4px 7.8px rgba(0, 0, 0, 0.25)",
+              fontFamily: "Poppins, sans-serif",
+              fontSize: "18px",
+              fontWeight: 600,
+            }}
+          >
+            {isLoading ? "Verifying..." : "Verify OTP"}
+          </button>
+          {/* Resend link */}
+          <div
+            className="w-full max-w-[432px] mx-auto flex items-center justify-center"
+            style={{ marginTop: "60px", gap: "6px" }}
+          >
+            <span
               style={{
-                height: 81,
-                backgroundColor: canVerify ? "#024413" : "rgba(2, 68, 19, 0.5)",
-                borderRadius: 13,
-                cursor: canVerify ? "pointer" : "not-allowed",
+                color: "#000",
+                fontFamily: "Poppins, sans-serif",
+                fontWeight: 500,
+                fontSize: "16px",
               }}
             >
-              Verify OTP
-            </button>
+              Didn't receive OTP?
+            </span>
 
-            {/* Didn't receive OTP? Resend OTP */}
-            <div style={{ marginTop: 24 }}>
+            {secondsLeft > 0 ? (
               <span
                 style={{
-                  fontSize: 18,
-                  fontWeight: 500,
-                  color: "#000000",
-                  fontStyle: "italic",
+                  fontFamily: "Poppins, sans-serif",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "#024413",
                 }}
               >
-                Didn't recieve OTP?{" "}
+                Resend in {secondsLeft}s
               </span>
-              {secondsLeft > 0 ? (
-                <span
-                  style={{ fontSize: 18, fontWeight: 600, color: "#00721E" }}
-                >
-                  Resend in {secondsLeft}s
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleResend}
-                  className="underline transition-all hover:opacity-80"
-                  style={{ fontSize: 18, fontWeight: 600, color: "#00721E" }}
-                >
-                  Resend OTP
-                </button>
-              )}
-            </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={isLoading}
+                style={{
+                  fontFamily: "Poppins, sans-serif",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "#024413",
+                  background: "none",
+                  border: "none",
+                  cursor: isLoading ? "not-allowed" : "pointer",
+                  padding: 0,
+                  opacity: isLoading ? 0.7 : 1,
+                }}
+              >
+                Resend OTP
+              </button>
+            )}
           </div>
         </div>
       </div>
